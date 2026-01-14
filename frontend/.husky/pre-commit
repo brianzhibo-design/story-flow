@@ -1,0 +1,4 @@
+#!/bin/sh
+cd storyflow/frontend
+npx lint-staged
+

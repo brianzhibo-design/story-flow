@@ -1,0 +1,175 @@
+version: '3.8'
+
+services:
+  # FastAPI 应用
+  api:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - SECRET_KEY=${SECRET_KEY}
+    ports:
+      - "8000:8000"
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+  
+  # Worker - 分镜生成
+  worker-storyboard:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app worker -l INFO -Q storyboard -c 2
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+    depends_on:
+      - rabbitmq
+      - redis
+  
+  # Worker - 图片生成
+  worker-image:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app worker -l INFO -Q image -c 4
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    depends_on:
+      - rabbitmq
+      - redis
+  
+  # Worker - 视频生成
+  worker-video:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app worker -l INFO -Q video -c 2
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    depends_on:
+      - rabbitmq
+      - redis
+  
+  # Worker - 视频合成
+  worker-compose:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app worker -l INFO -Q compose -c 1
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    depends_on:
+      - rabbitmq
+      - redis
+
+  # 数据库
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-storyflow}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # MinIO
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:
+
+networks:
+  default:
+    name: storyflow-production
+

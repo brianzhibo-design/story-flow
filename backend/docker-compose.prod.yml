@@ -1,0 +1,114 @@
+version: '3.8'
+
+# StoryFlow 生产环境 Docker Compose 配置
+# 使用方法: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # ==================== API 服务 ====================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: storyflow-api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+      - DEBUG=false
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      # 存储配置
+      - STORAGE_TYPE=${STORAGE_TYPE:-oss}
+      - OSS_ACCESS_KEY_ID=${OSS_ACCESS_KEY_ID}
+      - OSS_ACCESS_KEY_SECRET=${OSS_ACCESS_KEY_SECRET}
+      - OSS_ENDPOINT=${OSS_ENDPOINT}
+      - OSS_BUCKET=${OSS_BUCKET}
+      - OSS_CDN_DOMAIN=${OSS_CDN_DOMAIN}
+      # AI 服务配置
+      - AI_MOCK_MODE=${AI_MOCK_MODE:-false}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - KLING_ACCESS_KEY=${KLING_ACCESS_KEY}
+      - KLING_SECRET_KEY=${KLING_SECRET_KEY}
+      - VOLCENGINE_TTS_APP_ID=${VOLCENGINE_TTS_APP_ID}
+      - VOLCENGINE_TTS_TOKEN=${VOLCENGINE_TTS_TOKEN}
+      # CORS
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://storyflow.vercel.app}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - storyflow-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== Celery Worker ====================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: storyflow-worker
+    restart: always
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      - ENV=production
+      - DEBUG=false
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      # 存储配置
+      - STORAGE_TYPE=${STORAGE_TYPE:-oss}
+      - OSS_ACCESS_KEY_ID=${OSS_ACCESS_KEY_ID}
+      - OSS_ACCESS_KEY_SECRET=${OSS_ACCESS_KEY_SECRET}
+      - OSS_ENDPOINT=${OSS_ENDPOINT}
+      - OSS_BUCKET=${OSS_BUCKET}
+      # AI 服务配置
+      - AI_MOCK_MODE=${AI_MOCK_MODE:-false}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - KLING_ACCESS_KEY=${KLING_ACCESS_KEY}
+      - KLING_SECRET_KEY=${KLING_SECRET_KEY}
+      - VOLCENGINE_TTS_APP_ID=${VOLCENGINE_TTS_APP_ID}
+      - VOLCENGINE_TTS_TOKEN=${VOLCENGINE_TTS_TOKEN}
+    depends_on:
+      - api
+    networks:
+      - storyflow-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== Celery Beat (定时任务) ====================
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: storyflow-beat
+    restart: always
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    environment:
+      - ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+    depends_on:
+      - worker
+    networks:
+      - storyflow-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  storyflow-network:
+    driver: bridge

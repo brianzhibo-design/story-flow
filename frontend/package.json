@@ -1,0 +1,72 @@
+{
+  "name": "storyflow-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "cd ../.. && husky storyflow/frontend/.husky",
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.vue --fix",
+    "lint:check": "eslint src --ext .ts,.vue",
+    "format": "prettier --write \"src/**/*.{ts,vue,css,scss}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,vue,css,scss}\"",
+    "type-check": "vue-tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
+    "test:all": "npm run test:run && npm run test:e2e"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@vueuse/core": "^10.7.2",
+    "axios": "^1.6.2",
+    "axios-retry": "^4.0.0",
+    "dayjs": "^1.11.10",
+    "element-plus": "^2.4.4",
+    "lodash-es": "^4.17.21",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.5",
+    "vuedraggable": "^4.1.0",
+    "qrcode": "^1.5.3",
+    "@types/qrcode": "^1.5.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.1",
+    "@types/lodash-es": "^4.17.12",
+    "@types/node": "^20.10.4",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "@vitejs/plugin-vue": "^4.5.2",
+    "@vitest/coverage-v8": "^1.1.0",
+    "@vitest/ui": "^1.1.0",
+    "@vue/test-utils": "^2.4.3",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-vue": "^9.20.1",
+    "jsdom": "^23.0.1",
+    "postcss": "^8.4.32",
+    "prettier": "^3.2.4",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10",
+    "vitest": "^1.1.0",
+    "vue-tsc": "^1.8.25",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0"
+  },
+  "lint-staged": {
+    "*.{ts,vue}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
+}

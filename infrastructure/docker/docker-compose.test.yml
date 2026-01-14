@@ -1,0 +1,109 @@
+version: '3.8'
+
+# 测试环境 Docker Compose
+# 使用方法: docker-compose -f docker-compose.test.yml up
+
+services:
+  # 基础设施
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: storyflow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASSWORD: guest
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+
+  # 后端 API
+  api:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/storyflow
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: storyflow
+      MINIO_SECURE: "false"
+      AI_MOCK_MODE: "true"
+      SECRET_KEY: test-secret-key
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        alembic upgrade head || echo 'Migration skipped' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
+
+  # Worker
+  worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/storyflow
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      AI_MOCK_MODE: "true"
+      SECRET_KEY: test-secret-key
+    depends_on:
+      - api
+      - rabbitmq
+    command: celery -A app.workers.celery_app worker -l INFO
+    restart: on-failure
+
+  # 测试运行器
+  test:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/storyflow_test
+      REDIS_URL: redis://redis:6379/1
+      AI_MOCK_MODE: "true"
+      SECRET_KEY: test-secret-key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        sleep 5 &&
+        pytest tests/ -v --tb=short
+      "
+    profiles:
+      - test
+

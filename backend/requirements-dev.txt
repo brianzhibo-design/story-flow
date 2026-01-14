@@ -1,0 +1,20 @@
+-r requirements.txt
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+httpx==0.26.0  # 用于测试客户端
+
+# Linting & Formatting
+ruff==0.1.13
+mypy==1.8.0
+
+# Type Stubs
+types-redis==4.6.0
+types-passlib==1.7.7
+
+# Debug
+ipython==8.20.0
+rich==13.7.0
+
